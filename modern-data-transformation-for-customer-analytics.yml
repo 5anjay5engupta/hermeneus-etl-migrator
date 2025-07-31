@@ -1,0 +1,54 @@
+To convert the dbt SQL model with Jinja templating to a Matillion workflow, we need to create a series of transformations in Matillion that replicate the logic of the dbt model. Matillion uses a graphical interface to build ETL jobs, so the conversion will be described in terms of Matillion components and configurations.
+
+### Matillion Workflow Conversion
+
+1. **Create a New Job**: Start by creating a new job in Matillion.
+
+2. **Input Component**: Use a "Table Input" component to read from the source table.
+   - **Name**: `Customer Source`
+   - **Database**: Select the appropriate database connection.
+   - **SQL Query**: 
+     ```sql
+     SELECT * FROM raw.customer_source
+     ```
+
+3. **Select Component**: Add a "Select" component to rename and select specific columns.
+   - **Name**: `Renamed Columns`
+   - **Input**: Connect from `Customer Source`
+   - **Columns**:
+     - `customer_id`
+     - `first_name`
+     - `last_name`
+     - `email`
+     - `created_at`
+
+4. **Calculator Component**: Use a "Calculator" component to add the `full_name` and `processed_at` fields.
+   - **Name**: `Add Full Name and Processed At`
+   - **Input**: Connect from `Renamed Columns`
+   - **Calculations**:
+     - `full_name`: `first_name || ' ' || last_name`
+     - `processed_at`: `CURRENT_TIMESTAMP`
+
+5. **Output Component**: Use a "Table Output" component to write the final transformed data to the target table.
+   - **Name**: `Output Transformed Data`
+   - **Target Table**: Specify the target table where you want to store the transformed data.
+   - **Mapping**: Map all columns from the `Add Full Name and Processed At` component to the target table.
+
+6. **Error Handling and Logging**: 
+   - Use Matillion's built-in logging features to log job execution details.
+   - Configure error handling by setting up notifications or alerts in case of job failure.
+
+7. **Job Orchestration**: Ensure that the components are connected in sequence to maintain data lineage and transformation order.
+
+### Comments and Assumptions
+
+- **Comments**: Each component in Matillion allows you to add comments. Use this feature to document the purpose of each component and any specific logic implemented.
+- **Assumptions**: It is assumed that the source and target databases are correctly configured in Matillion, and that the necessary permissions are in place for data access and transformation.
+
+### Best Practices
+
+- Use descriptive names for each component to clearly indicate its function.
+- Regularly test the workflow to ensure data accuracy and integrity.
+- Utilize Matillion's version control features to manage changes to the ETL workflow.
+
+### Confidence Assessment
