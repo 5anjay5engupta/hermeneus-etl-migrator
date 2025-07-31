@@ -1,0 +1,49 @@
+# Dataflow Job Definition for Customer ETL Job
+
+# Source: Read from a CSV file in Google Cloud Storage
+- name: "ReadCustomerData"
+  type: "Read"
+  config:
+    sourceType: "GCS"
+    gcsOptions:
+      filePattern: "gs://your-bucket/data/source/customer.csv"
+    format: "CSV"
+    csvOptions:
+      delimiter: ","
+    output: "customer_data"
+
+# Transformation: Apply data transformations
+- name: "TransformCustomerData"
+  type: "Transform"
+  config:
+    input: "customer_data"
+    transformations:
+      - name: "full_name"
+        expression: "CONCAT(first_name, ' ', last_name)"
+      - name: "load_timestamp"
+        expression: "CURRENT_TIMESTAMP()"
+    output: "validated_data"
+
+# Target: Write to a Cloud SQL database
+- name: "WriteCustomerData"
+  type: "Write"
+  config:
+    destinationType: "CloudSQL"
+    cloudSqlOptions:
+      instanceId: "your-instance-id"
+      database: "your-database"
+      table: "CUSTOMER_DW"
+      writeDisposition: "WRITE_APPEND"
+    input: "validated_data"
+
+# Error Handling and Logging
+# Dataflow automatically provides logging and error handling. Ensure proper IAM roles are set for access.
+
+# Assumptions and Comments:
+# - The source CSV file is assumed to be stored in a Google Cloud Storage bucket.
+# - The target database is assumed to be a Cloud SQL instance.
+# - The transformation logic is converted using Dataflow's SQL-like expressions.
+# - Error handling and logging are managed by Dataflow's built-in capabilities.
+# - Ensure that the necessary IAM roles and permissions are configured for accessing GCS and Cloud SQL.
+
+```
