@@ -1,0 +1,246 @@
+{
+  "name": "Customer_Data_Pipeline",
+  "properties": {
+    "description": "ETL pipeline for customer data transformation",
+    "activities": [
+      {
+        "name": "CopyFromS3",
+        "type": "Copy",
+        "inputs": [
+          {
+            "referenceName": "CustomerSourceDataset",
+            "type": "DatasetReference"
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "CustomerStagingDataset",
+            "type": "DatasetReference"
+          }
+        ],
+        "typeProperties": {
+          "source": {
+            "type": "AmazonS3Source",
+            "recursive": true
+          },
+          "sink": {
+            "type": "AzureBlobFS",
+            "copyBehavior": "PreserveHierarchy"
+          }
+        }
+      },
+      {
+        "name": "TransformCustomerData",
+        "type": "DataFlow",
+        "dependsOn": [
+          {
+            "activity": "CopyFromS3",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "typeProperties": {
+          "dataflow": {
+            "referenceName": "CustomerDataTransformation",
+            "type": "DataFlowReference"
+          }
+        }
+      },
+      {
+        "name": "LoadToSnowflake",
+        "type": "Copy",
+        "dependsOn": [
+          {
+            "activity": "TransformCustomerData",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "inputs": [
+          {
+            "referenceName": "CustomerTransformedDataset",
+            "type": "DatasetReference"
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "CustomerTargetDataset",
+            "type": "DatasetReference"
+          }
+        ],
+        "typeProperties": {
+          "source": {
+            "type": "AzureBlobFSSource"
+          },
+          "sink": {
+            "type": "SnowflakeSink",
+            "preCopyScript": "BEGIN; DELETE FROM analytics.customer_dimension WHERE processed_timestamp < CURRENT_TIMESTAMP - INTERVAL '1 DAY'; COMMIT;"
+          }
+        }
+      }
+    ],
+    "annotations": [],
+    "variables": {},
+    "triggers": [
+      {
+        "name": "ScheduleTrigger",
+        "properties": {
+          "type": "ScheduleTrigger",
+          "pipelines": [
+            {
+              "pipelineReference": {
+                "referenceName": "Customer_Data_Pipeline",
+                "type": "PipelineReference"
+              }
+            }
+          ],
+          "recurrence": {
+            "frequency": "Day",
+            "interval": 1,
+            "startTime": "2023-01-01T02:00:00Z",
+            "timeZone": "UTC"
+          }
+        }
+      }
+    ]
+  }
+}
+
+// Linked Services
+{
+  "name": "S3LinkedService",
+  "properties": {
+    "type": "AmazonS3",
+    "typeProperties": {
+      "accessKeyId": "<access-key-id>",
+      "secretAccessKey": {
+        "type": "SecureString",
+        "value": "<secret-access-key>"
+      },
+      "serviceUrl": "https://s3.amazonaws.com"
+    }
+  }
+}
+
+{
+  "name": "SnowflakeLinkedService",
+  "properties": {
+    "type": "Snowflake",
+    "typeProperties": {
+      "connectionString": "jdbc:snowflake://<account>.snowflakecomputing.com",
+      "username": "<username>",
+      "password": {
+        "type": "SecureString",
+        "value": "<password>"
+      }
+    }
+  }
+}
+
+// Datasets
+{
+  "name": "CustomerSourceDataset",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "S3LinkedService",
+      "type": "LinkedServiceReference"
+    },
+    "type": "AmazonS3",
+    "typeProperties": {
+      "bucketName": "customer-data-lake",
+      "prefix": "raw/customers/",
+      "filePattern": "*.csv"
+    }
+  }
+}
+
+{
+  "name": "CustomerStagingDataset",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "AzureBlobFSLinkedService",
+      "type": "LinkedServiceReference"
+    },
+    "type": "AzureBlobFS",
+    "typeProperties": {
+      "folderPath": "staging/customers/"
+    }
+  }
+}
+
+{
+  "name": "CustomerTransformedDataset",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "AzureBlobFSLinkedService",
+      "type": "LinkedServiceReference"
+    },
+    "type": "AzureBlobFS",
+    "typeProperties": {
+      "folderPath": "transformed/customers/"
+    }
+  }
+}
+
+{
+  "name": "CustomerTargetDataset",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "SnowflakeLinkedService",
+      "type": "LinkedServiceReference"
+    },
+    "type": "SnowflakeTable",
+    "typeProperties": {
+      "tableName": "analytics.customer_dimension"
+    }
+  }
+}
+
+// Data Flow
+{
+  "name": "CustomerDataTransformation",
+  "properties": {
+    "type": "MappingDataFlow",
+    "typeProperties": {
+      "sources": [
+        {
+          "name": "CustomerSource",
+          "dataset": {
+            "referenceName": "CustomerStagingDataset",
+            "type": "DatasetReference"
+          }
+        }
+      ],
+      "sinks": [
+        {
+          "name": "CustomerSink",
+          "dataset": {
+            "referenceName": "CustomerTransformedDataset",
+            "type": "DatasetReference"
+          }
+        }
+      ],
+      "transformations": [
+        {
+          "name": "DerivedColumn",
+          "type": "DerivedColumn",
+          "transformation": {
+            "columns": [
+              {
+                "name": "full_name",
+                "expression": "first_name + ' ' + last_name"
+              },
+              {
+                "name": "processed_timestamp",
+                "expression": "currentTimestamp()"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+```
