@@ -1,0 +1,195 @@
+Here's the converted Azure Data Factory (ADF) JSON pipeline definition based on the provided SSIS package:
+
+```json
+{
+  "name": "Customer_ETL_Pipeline",
+  "properties": {
+    "activities": [
+      {
+        "name": "CopyData",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "7.00:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "typeProperties": {
+          "source": {
+            "type": "SqlSource",
+            "sqlReaderQuery": "SELECT customer_id, first_name, last_name, email FROM customer_source"
+          },
+          "sink": {
+            "type": "SqlSink",
+            "writeBatchSize": 10000,
+            "writeBatchTimeout": "00:00:00"
+          },
+          "enableStaging": false
+        },
+        "inputs": [
+          {
+            "referenceName": "CustomerSourceDataset",
+            "type": "DatasetReference"
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "CustomerStagingDataset",
+            "type": "DatasetReference"
+          }
+        ]
+      },
+      {
+        "name": "DataFlowActivity",
+        "type": "ExecuteDataFlow",
+        "dependsOn": [
+          {
+            "activity": "CopyData",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "typeProperties": {
+          "dataflow": {
+            "referenceName": "CustomerDataFlow",
+            "type": "DataFlowReference"
+          }
+        }
+      }
+    ],
+    "annotations": [],
+    "description": "Pipeline to migrate SSIS Customer ETL to ADF"
+  }
+}
+
+```
+
+**Linked Services and Datasets:**
+
+```json
+{
+  "name": "CustomerSourceDataset",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "AzureSqlDatabaseLinkedService",
+      "type": "LinkedServiceReference"
+    },
+    "type": "AzureSqlTable",
+    "schema": [],
+    "typeProperties": {
+      "tableName": "customer_source"
+    }
+  }
+}
+
+{
+  "name": "CustomerStagingDataset",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "AzureBlobStorageLinkedService",
+      "type": "LinkedServiceReference"
+    },
+    "type": "DelimitedText",
+    "schema": [],
+    "typeProperties": {
+      "location": {
+        "type": "AzureBlobStorageLocation",
+        "container": "staging",
+        "path": "customer"
+      },
+      "columnDelimiter": ",",
+      "escapeChar": "\\",
+      "firstRowAsHeader": true
+    }
+  }
+}
+
+{
+  "name": "CustomerDataFlow",
+  "properties": {
+    "type": "MappingDataFlow",
+    "typeProperties": {
+      "sources": [
+        {
+          "name": "CustomerStagingSource",
+          "dataset": {
+            "referenceName": "CustomerStagingDataset",
+            "type": "DatasetReference"
+          }
+        }
+      ],
+      "sinks": [
+        {
+          "name": "CustomerDwSink",
+          "dataset": {
+            "referenceName": "CustomerDwDataset",
+            "type": "DatasetReference"
+          }
+        }
+      ],
+      "transformations": [
+        {
+          "name": "DerivedColumn",
+          "type": "DerivedColumn",
+          "derivedColumns": [
+            {
+              "name": "full_name",
+              "expression": "first_name + ' ' + last_name"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+
+{
+  "name": "CustomerDwDataset",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "AzureSqlDatabaseLinkedService",
+      "type": "LinkedServiceReference"
+    },
+    "type": "AzureSqlTable",
+    "schema": [],
+    "typeProperties": {
+      "tableName": "customer_dw"
+    }
+  }
+}
+```
+
+**Linked Services:**
+
+```json
+{
+  "name": "AzureSqlDatabaseLinkedService",
+  "properties": {
+    "type": "AzureSqlDatabase",
+    "typeProperties": {
+      "connectionString": "your_connection_string_here"
+    }
+  }
+}
+
+{
+  "name": "AzureBlobStorageLinkedService",
+  "properties": {
+    "type": "AzureBlobStorage",
+    "typeProperties": {
+      "connectionString": "your_blob_storage_connection_string_here"
+    }
+  }
+}
+```
+
+**Comments and Assumptions:**
+- The SSIS OLE DB Source is replaced with an ADF Copy Activity using a SQL source.
+- The Derived Column transformation is implemented in a Data Flow activity in ADF.
+- The OLE DB Destination is replaced with an ADF Sink in the Data Flow.
+- Error handling and logging are assumed to be managed by ADF's built-in monitoring and logging capabilities.
+- Connection strings need to be replaced with actual values for Azure SQL Database and Azure Blob Storage.
+- Assumed intermediate staging in Blob Storage for data flow processing.
