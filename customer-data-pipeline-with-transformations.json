@@ -1,0 +1,220 @@
+{
+    "name": "CustomerDataProcessingPipeline",
+    "properties": {
+        "activities": [
+            {
+                "name": "CopyCustomerSourceToBlob",
+                "type": "Copy",
+                "inputs": [
+                    {
+                        "referenceName": "CustomerSourceDataset",
+                        "type": "DatasetReference"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "referenceName": "CustomerBlobDataset",
+                        "type": "DatasetReference"
+                    }
+                ],
+                "typeProperties": {
+                    "source": {
+                        "type": "DelimitedTextSource",
+                        "formatSettings": {
+                            "columnDelimiter": ","
+                        }
+                    },
+                    "sink": {
+                        "type": "BlobSink"
+                    }
+                }
+            },
+            {
+                "name": "TransformCustomerData",
+                "type": "DataFlow",
+                "typeProperties": {
+                    "dataflow": {
+                        "referenceName": "CustomerDataFlow",
+                        "type": "DataFlowReference"
+                    }
+                }
+            },
+            {
+                "name": "CopyTransformedToTarget",
+                "type": "Copy",
+                "inputs": [
+                    {
+                        "referenceName": "TransformedCustomerDataset",
+                        "type": "DatasetReference"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "referenceName": "CustomerTargetDataset",
+                        "type": "DatasetReference"
+                    }
+                ],
+                "typeProperties": {
+                    "source": {
+                        "type": "DelimitedTextSource",
+                        "formatSettings": {
+                            "columnDelimiter": ","
+                        }
+                    },
+                    "sink": {
+                        "type": "DelimitedTextSink",
+                        "formatSettings": {
+                            "columnDelimiter": ","
+                        }
+                    }
+                }
+            }
+        ],
+        "annotations": [],
+        "concurrency": 1,
+        "description": "Pipeline to process customer data from source to target with transformation."
+    }
+}
+
+{
+    "name": "CustomerDataFlow",
+    "properties": {
+        "type": "MappingDataFlow",
+        "typeProperties": {
+            "sources": [
+                {
+                    "name": "CustomerSource",
+                    "dataset": {
+                        "referenceName": "CustomerBlobDataset",
+                        "type": "DatasetReference"
+                    }
+                }
+            ],
+            "sinks": [
+                {
+                    "name": "CustomerSink",
+                    "dataset": {
+                        "referenceName": "TransformedCustomerDataset",
+                        "type": "DatasetReference"
+                    }
+                }
+            ],
+            "transformations": [
+                {
+                    "name": "DerivedColumn",
+                    "type": "DerivedColumn",
+                    "typeProperties": {
+                        "columns": [
+                            {
+                                "name": "full_name",
+                                "expression": "first_name + ' ' + last_name"
+                            },
+                            {
+                                "name": "processed_date",
+                                "expression": "currentUTC()"
+                            },
+                            {
+                                "name": "customer_key",
+                                "expression": "hash(customer_id)"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+}
+
+{
+    "name": "CustomerSourceDataset",
+    "properties": {
+        "linkedServiceName": {
+            "referenceName": "AzureBlobStorageLinkedService",
+            "type": "LinkedServiceReference"
+        },
+        "type": "DelimitedText",
+        "typeProperties": {
+            "location": {
+                "type": "AzureBlobStorageLocation",
+                "fileName": "customer.txt",
+                "folderPath": "source"
+            },
+            "columnDelimiter": ",",
+            "firstRowAsHeader": true
+        }
+    }
+}
+
+{
+    "name": "CustomerBlobDataset",
+    "properties": {
+        "linkedServiceName": {
+            "referenceName": "AzureBlobStorageLinkedService",
+            "type": "LinkedServiceReference"
+        },
+        "type": "DelimitedText",
+        "typeProperties": {
+            "location": {
+                "type": "AzureBlobStorageLocation",
+                "fileName": "customer_blob.txt",
+                "folderPath": "intermediate"
+            },
+            "columnDelimiter": ",",
+            "firstRowAsHeader": true
+        }
+    }
+}
+
+{
+    "name": "TransformedCustomerDataset",
+    "properties": {
+        "linkedServiceName": {
+            "referenceName": "AzureBlobStorageLinkedService",
+            "type": "LinkedServiceReference"
+        },
+        "type": "DelimitedText",
+        "typeProperties": {
+            "location": {
+                "type": "AzureBlobStorageLocation",
+                "fileName": "customer_transformed.txt",
+                "folderPath": "intermediate"
+            },
+            "columnDelimiter": ",",
+            "firstRowAsHeader": true
+        }
+    }
+}
+
+{
+    "name": "CustomerTargetDataset",
+    "properties": {
+        "linkedServiceName": {
+            "referenceName": "AzureBlobStorageLinkedService",
+            "type": "LinkedServiceReference"
+        },
+        "type": "DelimitedText",
+        "typeProperties": {
+            "location": {
+                "type": "AzureBlobStorageLocation",
+                "fileName": "customer_dw.txt",
+                "folderPath": "target"
+            },
+            "columnDelimiter": ",",
+            "firstRowAsHeader": true
+        }
+    }
+}
+
+{
+    "name": "AzureBlobStorageLinkedService",
+    "properties": {
+        "type": "AzureBlobStorage",
+        "typeProperties": {
+            "connectionString": {
+                "type": "SecureString",
+                "value": "DefaultEndpointsProtocol=https;AccountName=youraccount;AccountKey=yourkey;EndpointSuffix=core.windows.net"
+            }
+        }
+    }
+}
+```
